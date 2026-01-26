@@ -24,7 +24,17 @@ import numpy as np
 pyautogui.PAUSE = 0.1
 pyautogui.FAILSAFE = True
 
-SKIP_BUTTON_IMAGE = 'skip_button.png'
+
+def get_resource_path(filename):
+    """Get path to resource, works for dev and PyInstaller."""
+    if getattr(sys, '_MEIPASS', None):
+        # Running as bundled executable
+        return os.path.join(sys._MEIPASS, filename)
+    # Running as script - check same directory as script
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+
+
+SKIP_BUTTON_IMAGE = get_resource_path('skip_button.png')
 
 
 def get_display_scaling():

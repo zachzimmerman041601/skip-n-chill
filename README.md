@@ -12,10 +12,13 @@ testing so far:
 * only worked on laptop screen not on connected monitor
 * should in theory work for any size computer screen
 
+<br>
+build executable using: <br>
 
+```python build_executable.py```
 
 <br><br><br>
 
-# Before starting either
+# Before doing anything
 
 make sure to run from venv or using interpreter after doing ```pip install -r requirements.txt```

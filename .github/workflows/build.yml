@@ -1,0 +1,60 @@
+name: Build Executables
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact_name: YouTubeAdSkipper.app
+            asset_name: YouTubeAdSkipper-macOS.zip
+          - os: windows-latest
+            artifact_name: YouTubeAdSkipper.exe
+            asset_name: YouTubeAdSkipper-Windows.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build with PyInstaller (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          pyinstaller --onefile --windowed --name YouTubeAdSkipper \
+            --add-data "skip_button.png:." \
+            youtube_skipper_native.py
+          cd dist && zip -r ../YouTubeAdSkipper-macOS.zip YouTubeAdSkipper.app
+
+      - name: Build with PyInstaller (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          pyinstaller --onefile --name YouTubeAdSkipper `
+            --add-data "skip_button.png;." `
+            youtube_skipper_native.py
+
+      - name: Upload macOS artifact
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: YouTubeAdSkipper-macOS
+          path: YouTubeAdSkipper-macOS.zip
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: YouTubeAdSkipper-Windows
+          path: dist/YouTubeAdSkipper.exe
