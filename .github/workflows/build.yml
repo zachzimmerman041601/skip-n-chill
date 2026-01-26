@@ -36,6 +36,7 @@ jobs:
           pyinstaller --onefile --windowed --name YouTubeAdSkipper \
             --add-data "skip_button.png:." \
             youtube-skipper-native.py
+          codesign --force --deep --sign - dist/YouTubeAdSkipper.app
           cd dist && zip -r ../YouTubeAdSkipper-macOS.zip YouTubeAdSkipper.app
 
       - name: Build with PyInstaller (Windows)

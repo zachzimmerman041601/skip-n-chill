@@ -45,19 +45,30 @@ def build():
     cmd.append(SCRIPT)
     
     subprocess.run(cmd, check=True)
-    
+
+    # macOS: ad-hoc sign for stable permissions identity
+    if current_os == "Darwin":
+        print("Signing app...")
+        subprocess.run([
+            "codesign", "--force", "--deep", "--sign", "-",
+            f"dist/{APP_NAME}.app"
+        ], check=True)
+
     print()
     print("=" * 50)
     print("Build complete!")
     print("=" * 50)
     print()
-    
+
     if current_os == "Darwin":
         print("Output: dist/YouTubeAdSkipper.app")
         print()
         print("To run:")
-        print("  1. Right-click the app → Open (first time only)")
-        print("  2. Grant accessibility permissions when prompted")
+        print("  1. Run: xattr -cr dist/YouTubeAdSkipper.app")
+        print("  2. Double-click the app (or right-click → Open)")
+        print("  3. Add to System Settings → Privacy & Security:")
+        print("     - Screen Recording")
+        print("     - Accessibility")
     elif current_os == "Windows":
         print("Output: dist/YouTubeAdSkipper.exe")
         print()
