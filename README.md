@@ -13,7 +13,7 @@ testing so far:
 * should in theory work for any size computer screen
 
 <br>
-build executable using: <br>
+build executable using (or download latest from the releases page if don't want to do this): <br>
 
 ```python build_executable.py```
 
