@@ -16,7 +16,7 @@ import subprocess
 import sys
 import platform
 
-APP_NAME = "YouTubeAdSkipper"
+APP_NAME = "SkipnChill"
 SCRIPT = "youtube-skipper-native.py"
 
 
@@ -33,9 +33,10 @@ def build():
         "--name", APP_NAME,
     ]
     
-    # Add the image file with correct path separator
+    # Add the image file(s) with correct path separator
     if current_os == "Windows":
         cmd.extend(["--add-data", "skip_button.png;."])
+        cmd.extend(["--add-data", "skip_button_windows.png;."])
     else:
         cmd.extend(["--add-data", "skip_button.png:."])
 

@@ -1,5 +1,5 @@
 """
-YouTube Ad Skipper - Native Mouse Click Version
+Skip n' Chill - YouTube Ad Skipper
 Runs in background and clicks the skip button using real mouse input.
 
 Install: pip install -r requirements.txt
@@ -18,6 +18,7 @@ import time
 import sys
 import os
 import threading
+import ctypes
 from PIL import ImageGrab
 import cv2
 import numpy as np
@@ -39,7 +40,13 @@ def get_resource_path(filename):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 
-SKIP_BUTTON_IMAGE = get_resource_path('skip_button.png')
+import platform
+
+# Use platform-specific skip button image
+if platform.system() == 'Windows':
+    SKIP_BUTTON_IMAGE = get_resource_path('skip_button_windows.png')
+else:
+    SKIP_BUTTON_IMAGE = get_resource_path('skip_button.png')
 
 
 def get_display_scaling():
@@ -51,32 +58,98 @@ def get_display_scaling():
     return scale
 
 
+def is_youtube_active():
+    """Check if YouTube is in the active window title."""
+    try:
+        if platform.system() == 'Windows':
+            # Get active window handle and title
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            buf = ctypes.create_unicode_buffer(length + 1)
+            ctypes.windll.user32.GetWindowTextW(hwnd, buf, length + 1)
+            window_title = buf.value.lower()
+            return 'youtube' in window_title
+        else:
+            # macOS/Linux - just return True for now (can be improved)
+            return True
+    except Exception:
+        return False
+
+
 def find_skip_button(scale):
-    """Locate the skip button on screen using OpenCV template matching."""
+    """Locate the skip button using edge detection + template matching.
+
+    Uses Canny edge detection for more robust matching across different
+    color schemes and brightness levels. Only searches bottom-right quadrant
+    where YouTube skip buttons appear.
+    """
     try:
         screenshot = ImageGrab.grab()
         screenshot_np = np.array(screenshot)
-        screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
+
+        # Only search bottom-right quadrant of screen (where skip button appears)
+        h, w = screenshot_np.shape[:2]
+        # Skip button is typically in bottom-right area of video
+        search_region = screenshot_np[h//2:, w//2:]
+        region_offset_x = w // 2
+        region_offset_y = h // 2
+
+        # Convert to grayscale
+        search_gray = cv2.cvtColor(search_region, cv2.COLOR_RGB2GRAY)
+
+        # Apply edge detection for more robust matching
+        search_edges = cv2.Canny(search_gray, 50, 150)
 
         template = cv2.imread(SKIP_BUTTON_IMAGE, cv2.IMREAD_GRAYSCALE)
         if template is None:
             return None
 
-        result = cv2.matchTemplate(screenshot_gray, template, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        template_edges = cv2.Canny(template, 50, 150)
 
-        if max_val >= 0.7:
-            h, w = template.shape
-            center_x = max_loc[0] + w // 2
-            center_y = max_loc[1] + h // 2
+        # Try multiple scales
+        best_match = None
+        best_confidence = 0
+        scales_to_try = [1.0, 0.9, 1.1, 0.8, 1.2, 0.7, 1.3]
 
+        for template_scale in scales_to_try:
+            if template_scale != 1.0:
+                new_w = int(template_edges.shape[1] * template_scale)
+                new_h = int(template_edges.shape[0] * template_scale)
+                if new_w < 10 or new_h < 10:
+                    continue
+                scaled_template = cv2.resize(template_edges, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            else:
+                scaled_template = template_edges
+
+            # Skip if template is larger than search region
+            if scaled_template.shape[0] > search_edges.shape[0] or scaled_template.shape[1] > search_edges.shape[1]:
+                continue
+
+            # Use TM_CCORR_NORMED for edge matching (works better with edges)
+            result = cv2.matchTemplate(search_edges, scaled_template, cv2.TM_CCORR_NORMED)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+            if max_val > best_confidence:
+                best_confidence = max_val
+                th, tw = scaled_template.shape
+                # Calculate center position in full screenshot coordinates
+                center_x = region_offset_x + max_loc[0] + tw // 2
+                center_y = region_offset_y + max_loc[1] + th // 2
+                best_match = (center_x, center_y, max_val, template_scale)
+
+        # Edge matching threshold (0.55 for better accuracy)
+        if best_match and best_confidence >= 0.55:
+            center_x, center_y, confidence, matched_scale = best_match
             screen_x = int(center_x / scale)
             screen_y = int(center_y / scale)
+            return (screen_x, screen_y, confidence)
 
-            return (screen_x, screen_y, max_val)
+        # Return debug info
+        if best_match:
+            return (0, 0, -best_confidence)
 
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error in find_skip_button: {e}")
 
     return None
 
@@ -110,7 +183,7 @@ class YouTubeAdSkipper(QMainWindow):
         self._center_window()
 
     def _setup_ui(self):
-        self.setWindowTitle("YouTube Ad Skipper")
+        self.setWindowTitle("Skip n' Chill")
         self.setFixedSize(300, 220)
 
         central = QWidget()
@@ -120,7 +193,7 @@ class YouTubeAdSkipper(QMainWindow):
         layout.setSpacing(10)
 
         # Title
-        title = QLabel("YouTube Ad Skipper")
+        title = QLabel("Skip n' Chill")
         title.setFont(QFont("Helvetica", 18, QFont.Bold))
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
@@ -215,14 +288,24 @@ class YouTubeAdSkipper(QMainWindow):
     def _skipper_loop(self):
         while self.running:
             try:
+                # Only scan when YouTube is the active window
+                if not is_youtube_active():
+                    self.signals.update_status.emit("Waiting for YouTube...", self.clicks_count)
+                    time.sleep(1)
+                    continue
+
                 result = find_skip_button(self.scale)
 
                 if result:
                     x, y, confidence = result
-                    click_at(x, y)
-                    self.clicks_count += 1
-                    self.signals.update_status.emit(f"Clicked! ({confidence:.0%} match)", self.clicks_count)
-                    time.sleep(2)
+                    if confidence > 0:  # Positive = good match, click it
+                        click_at(x, y)
+                        self.clicks_count += 1
+                        self.signals.update_status.emit(f"Clicked! ({confidence:.0%} match)", self.clicks_count)
+                        time.sleep(2)
+                    else:  # Negative = debug info, show best confidence but don't click
+                        self.signals.update_status.emit(f"Scanning... (best: {-confidence:.0%})", self.clicks_count)
+                        time.sleep(0.5)
                 else:
                     self.signals.update_status.emit("Scanning...", self.clicks_count)
                     time.sleep(0.5)
@@ -231,7 +314,8 @@ class YouTubeAdSkipper(QMainWindow):
                 self.signals.update_status.emit("Failsafe triggered", self.clicks_count)
                 self.signals.stop_requested.emit()
                 break
-            except Exception:
+            except Exception as e:
+                print(f"Error in skipper loop: {e}")
                 time.sleep(0.5)
 
     def _on_status_update(self, status, count):
