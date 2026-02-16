@@ -3,3 +3,5 @@ dist
 *.spec
 __pycache__/
 nul
+SkipnChill-macOS.zip/
+SkipnChill-Windows.exe/
