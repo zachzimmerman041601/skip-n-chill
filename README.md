@@ -1,5 +1,9 @@
 # Automatically skip Youtube ads
 
+Windows: https://github.com/zachzimmerman041601/skip-n-chill/releases/latest/download/SkipnChill-Windows.exe
+
+macOS: https://github.com/zachzimmerman041601/skip-n-chill/releases/latest/download/SkipnChill-macOS.zip
+
 ### native
 
 run the native: <br>
